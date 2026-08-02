@@ -1,0 +1,87 @@
+# HeyCode 后端构建 CI
+#
+# 触发：
+#   - push tag backend-v* → 交叉编译 linux/amd64 并发 GitHub Release
+#   - workflow_dispatch 手动触发
+#
+# 产物：
+#   - heycode-backend-linux-amd64（裸二进制，install.sh 从此下载）
+
+name: build-backend
+
+on:
+  push:
+    tags:
+      - 'backend-v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '构建的分支/tag/commit'
+        required: false
+        default: main
+
+permissions:
+  contents: write  # 发 Release 需要
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # 1. checkout
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      # 2. Setup Go
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: backend-go/go.sum
+
+      # 3. 交叉编译
+      - name: Cross-compile linux/amd64
+        working-directory: backend-go
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o heycode-backend-linux-amd64 ./cmd/heycode-backend
+          ls -lh heycode-backend-linux-amd64
+
+      # 4. 打包安装资源
+      - name: Pack install assets
+        working-directory: backend-go
+        run: |
+          mkdir -p dist
+          cp heycode-backend-linux-amd64 dist/
+          cp deploy/heycode-backend.service dist/
+          cp deploy/.env.example dist/
+          cp deploy/install.sh dist/
+          cd dist && tar -czf heycode-backend-linux-amd64.tar.gz *
+
+      # 5. 上传 artifact（workflow_dispatch 也保留）
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: heycode-backend-linux-amd64
+          path: |
+            backend-go/dist/heycode-backend-linux-amd64
+            backend-go/dist/heycode-backend-linux-amd64.tar.gz
+          retention-days: 14
+
+      # 6. 发布 Release（仅 tag backend-v*）
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/backend-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            backend-go/dist/heycode-backend-linux-amd64
+            backend-go/dist/heycode-backend-linux-amd64.tar.gz
+            backend-go/dist/install.sh
+            backend-go/dist/.env.example
+            backend-go/dist/heycode-backend.service
