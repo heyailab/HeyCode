@@ -1,11 +1,15 @@
 # ---- Go 后端 ----
-# 编译产物
+# 编译产物（仅忽略各目录下的同名二进制，不忽略 cmd/heycode-backend/ 源码目录）
 *.exe
 *.exe~
-heycode-backend
-heycode-backend-linux-amd64
-heycode-backend-darwin-amd64
-heycode-backend-darwin-arm64
+/heycode-backend
+/heycode-backend-linux-amd64
+/heycode-backend-darwin-amd64
+/heycode-backend-darwin-arm64
+backend-go/heycode-backend
+backend-go/heycode-backend-linux-amd64
+backend-go/heycode-backend-darwin-amd64
+backend-go/heycode-backend-darwin-arm64
 # SQLite 开发数据库（生产数据不入库）
 *.db
 *.db-shm
