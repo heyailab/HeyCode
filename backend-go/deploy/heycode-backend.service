@@ -1,0 +1,55 @@
+# HeyCode 后端 systemd unit
+#
+# 安装：
+#   sudo cp heycode-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable heycode-backend
+#   sudo systemctl start heycode-backend
+#
+# 查看日志：
+#   journalctl -u heycode-backend -f
+#
+# 配置文件 /opt/heycode/.env 由部署脚本上传，含 MASTER_KEY 等敏感信息。
+# 二进制 /opt/heycode/heycode-backend 由部署脚本 scp 上传。
+
+[Unit]
+Description=HeyCode Backend
+Documentation=https://github.com/heycode/heycode
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heycode
+Group=heycode
+WorkingDirectory=/opt/heycode
+# 配置从 .env 读取（环境变量文件，非 systemd EnvironmentFile 语义）
+EnvironmentFile=/opt/heycode/.env
+ExecStart=/opt/heycode/heycode-backend
+
+# 优雅退出：SIGTERM 触发 srv.Shutdown（10s），超时强杀
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# 重启策略：异常退出 3s 后重启，避免崩溃循环不设启动间隔
+Restart=on-failure
+RestartSec=3
+
+# 安全加固：限制权限
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/heycode
+# SQLite 数据库需写入 WorkingDirectory，故 ReadWritePaths 放行 /opt/heycode
+
+# 资源限制：内存 256M（spec §M10 要求 <50MB，留余量）
+MemoryMax=256M
+
+# 日志走 journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=heycode-backend
+
+[Install]
+WantedBy=multi-user.target

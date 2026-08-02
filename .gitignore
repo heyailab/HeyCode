@@ -1,0 +1,73 @@
+# ---- Go 后端 ----
+# 编译产物
+*.exe
+*.exe~
+heycode-backend
+heycode-backend-linux-amd64
+heycode-backend-darwin-amd64
+heycode-backend-darwin-arm64
+# SQLite 开发数据库（生产数据不入库）
+*.db
+*.db-shm
+*.db-wal
+dev.db*
+# Go 测试覆盖率
+*.out
+coverage.txt
+
+# ---- Flutter / Dart（未来 App 工程）----
+# 详见 mobile/.gitignore（Flutter create 自动生成）
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/build/
+**/generated_plugin_registrant.*
+# Flutter 构建产物
+**/flutter-apk/
+**/.flutter-plugins-dependencies
+# iOS（若后续支持）
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# ---- Android 签名（绝不入库）----
+*.jks
+*.keystore
+key.properties
+**/android/app/release.jks
+**/android/key.properties
+
+# ---- 通用 ----
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+# 环境变量与密钥（敏感，绝不入库）
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+# 日志
+*.log
+logs/
+# 操作系统
+.DS_Store
+ehthumbs.db
+Desktop.ini
