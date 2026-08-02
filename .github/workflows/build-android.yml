@@ -1,0 +1,201 @@
+# HeyCode App Android 构建 CI
+# 详见 SPEC-FLUTTER-APP.md §19
+#
+# 触发：
+#   - push 到 main/master（paths: mobile/**, shared/**, workflow）→ 构建 debug APK
+#   - push tag v* → 构建 release APK 并发 GitHub Release
+#   - workflow_dispatch 手动触发，可选 debug/release/split
+
+name: build-android
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'mobile/**'
+      - 'shared/**'
+      - '.github/workflows/build-android.yml'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '构建模式'
+        required: true
+        default: debug
+        type: choice
+        options:
+          - debug
+          - release
+          - split
+
+concurrency:
+  group: build-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write  # 发 Release 需要
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      # 1. checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. JDK 17
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 3. Flutter stable
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # 4. 接受 Android license
+      - name: Accept Android licenses
+        run: yes | flutter doctor --android-licenses || true
+
+      # 5. flutter doctor
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      # 6. pub get
+      - name: flutter pub get
+        run: flutter pub get
+
+      # 7. 补齐 Android 脚手架资源（不覆盖已有文件）
+      - name: Ensure Android scaffold
+        run: flutter create . --platforms=android --project-name heycode_app
+
+      # 8. 校验 INTERNET 权限
+      - name: Verify INTERNET permission
+        run: |
+          if ! grep -q "android.permission.INTERNET" android/app/src/main/AndroidManifest.xml; then
+            echo "错误：AndroidManifest.xml 缺少 INTERNET 权限"
+            exit 1
+          fi
+
+      # 9. 静态检查（不阻断）
+      - name: flutter analyze
+        run: flutter analyze || true
+
+      # 10. 决定构建模式
+      - name: Determine build mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ github.event.inputs.mode }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            MODE="release"
+          else
+            MODE="debug"
+          fi
+          echo "build_mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "构建模式: $MODE"
+
+      # 11. 解码签名 keystore（仅非 debug）
+      - name: Decode signing keystore
+        if: steps.mode.outputs.build_mode != 'debug'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "未配置签名 secret，构建未签名 APK"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=release.jks
+          EOF
+          echo "已写入 android/key.properties"
+
+      # 12. 构建
+      - name: Build APK
+        run: |
+          MODE="${{ steps.mode.outputs.build_mode }}"
+          if [ "$MODE" = "debug" ]; then
+            flutter build apk --debug || true
+          elif [ "$MODE" = "split" ]; then
+            flutter build apk --release --split-per-abi || true
+          else
+            flutter build apk --release || true
+          fi
+
+      # 13. 上传 artifact
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ steps.mode.outputs.build_mode }}
+          path: |
+            mobile/build/app/outputs/flutter-apk/*.apk
+            mobile/android/app/build/outputs/flutter-apk/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      # 14. 发布 Latest Prerelease（仅 main 分支且非 PR）
+      - name: Publish latest prerelease
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          prerelease: true
+          make_latest: false
+          name: Latest Debug Build
+          body: |
+            自动构建的 debug 版本（来自 main 分支最新提交）。
+
+            ## 直接下载
+
+            [app-debug.apk](https://github.com/${{ github.repository }}/releases/download/latest/app-debug.apk)
+
+            提交: ${{ github.sha }}
+          files: |
+            mobile/build/app/outputs/flutter-apk/app-debug.apk
+            mobile/android/app/build/outputs/flutter-apk/app-debug.apk
+
+      # 15. 创建正式 Release（仅 tag v*）
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/android/app/build/outputs/flutter-apk/app-release.apk
+
+      # 16. 构建结果摘要
+      - name: Build summary
+        if: always()
+        run: |
+          MODE="${{ steps.mode.outputs.build_mode }}"
+          {
+            echo "## HeyCode App 构建"
+            echo ""
+            echo "- 模式: \`${MODE}\`"
+            echo "- 事件: \`${{ github.event_name }}\`"
+            echo "- 分支/Tag: \`${{ github.ref_name }}\`"
+            echo "- 提交: [\`${GITHUB_SHA::7}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})"
+            echo ""
+            echo "### APK 产物"
+          } >> "$GITHUB_STEP_SUMMARY"
+          ls -1 build/app/outputs/flutter-apk/*.apk 2>/dev/null \
+            | sed 's/^/- `/;s/$/`/' >> "$GITHUB_STEP_SUMMARY" || true

@@ -1,0 +1,4 @@
+storePassword=你的keystore密码
+keyPassword=你的key密码
+keyAlias=release
+storeFile=/绝对路径/to/app-release.jks
