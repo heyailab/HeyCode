@@ -59,7 +59,14 @@ jobs:
           cp deploy/heycode-backend.service dist/
           cp deploy/.env.example dist/
           cp deploy/install.sh dist/
-          cd dist && tar -czf heycode-backend-linux-amd64.tar.gz *
+          # 显式列出文件打包（shell 的 * 默认不匹配点开头的 .env.example）
+          cd dist && tar -czf heycode-backend-linux-amd64.tar.gz \
+            heycode-backend-linux-amd64 \
+            heycode-backend.service \
+            .env.example \
+            install.sh
+          echo "打包内容："
+          tar -tzf heycode-backend-linux-amd64.tar.gz
 
       # 5. 上传 artifact（workflow_dispatch 也保留）
       - name: Upload artifact

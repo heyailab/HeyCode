@@ -112,6 +112,23 @@ download "$BASE_URL/heycode-backend-linux-amd64.tar.gz" "$TMP_DIR/heycode-backen
 tar -xzf "$TMP_DIR/heycode-backend-linux-amd64.tar.gz" -C "$TMP_DIR/"
 chmod +x "$TMP_DIR/heycode-backend-linux-amd64"
 
+# 兜底：若 tar 包里缺 .env.example（旧版打包遗漏），从 GitHub 单独下载
+# GitHub 会把点开头的 asset 重命名为 default.env.example
+if [ ! -f "$TMP_DIR/.env.example" ]; then
+    step "fallback 下载 .env.example（GitHub 重命名为 default.env.example）"
+    download "$BASE_URL/default.env.example" "$TMP_DIR/.env.example" || {
+        warn "无法下载 .env.example，将使用内置最小配置"
+        cat > "$TMP_DIR/.env.example" <<EOF
+PORT=$PORT
+DATABASE_URL=file:$INSTALL_DIR/data.db
+MASTER_KEY=replace_me_with_32_bytes_hex_string
+JWT_SECRET=change_me_min_8_chars
+LOG_LEVEL=info
+MOCK_CLI=false
+EOF
+    }
+fi
+
 # ---- 4. 准备 .env ----
 info "生成配置..."
 if [ -f "$INSTALL_DIR/.env" ]; then
