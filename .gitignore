@@ -47,6 +47,8 @@ coverage.txt
 key.properties
 **/android/app/release.jks
 **/android/key.properties
+keystore-base64.txt
+*.jks.b64
 
 # ---- 通用 ----
 # IDE
