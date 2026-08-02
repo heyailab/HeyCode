@@ -131,11 +131,11 @@ jobs:
         run: |
           MODE="${{ steps.mode.outputs.build_mode }}"
           if [ "$MODE" = "debug" ]; then
-            flutter build apk --debug || true
+            flutter build apk --debug
           elif [ "$MODE" = "split" ]; then
-            flutter build apk --release --split-per-abi || true
+            flutter build apk --release --split-per-abi
           else
-            flutter build apk --release || true
+            flutter build apk --release
           fi
 
       # 13. 上传 artifact
