@@ -42,6 +42,7 @@ class WsClient {
   bool _initialized = false; // 是否已收到 session.init
 
   String _wsUrl = '';
+  String _authToken = '';
 
   final _stateController = StreamController<WsConnectionState>.broadcast();
   final _envelopeController = StreamController<ServerEnvelope>.broadcast();
@@ -62,6 +63,12 @@ class WsClient {
     _wsUrl = url;
   }
 
+  /// 设置鉴权 token（由 providers 在 config 变更时调用）。
+  /// 非空时连接 URL 会附加 ?token= query param。
+  void setAuthToken(String token) {
+    _authToken = token;
+  }
+
   /// 连接到指定会话。
   /// 切换会话时不清零 _lastEventId（依赖服务端 eventId 全局递增）。
   Future<void> connect(String sessionId) async {
@@ -80,7 +87,13 @@ class WsClient {
   void _doConnect() {
     if (_disposed || _sessionId == null || _wsUrl.isEmpty) return;
     try {
-      final uri = Uri.parse('$_wsUrl/$_sessionId');
+      // 拼接鉴权 query param（浏览器 WS 不能设 header，统一走 ?token=）。
+      final base = '$_wsUrl/$_sessionId';
+      final uri = _authToken.isEmpty
+          ? Uri.parse(base)
+          : Uri.parse(base).replace(queryParameters: {
+              'token': _authToken,
+            });
       _channel = buildWebSocketChannel(uri);
       _socketSub = _channel!.stream.listen(
         _onData,

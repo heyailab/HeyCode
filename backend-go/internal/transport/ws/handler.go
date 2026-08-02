@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
+	"github.com/heycode/backend-go/internal/auth"
 	"github.com/heycode/backend-go/internal/eventbus"
 	"github.com/heycode/backend-go/internal/service"
 	"github.com/heycode/backend-go/internal/types"
@@ -48,11 +49,13 @@ var upgrader = websocket.Upgrader{
 // Handler 处理 WS 连接。
 type Handler struct {
 	svc *service.SessionService
+	// authMgr 可为 nil（鉴权未启用）。非 nil 且启用时，Upgrade 前校验 ?token=。
+	authMgr *auth.Manager
 }
 
-// NewHandler 创建 WS handler。
-func NewHandler(svc *service.SessionService) *Handler {
-	return &Handler{svc: svc}
+// NewHandler 创建 WS handler。authMgr 可为 nil。
+func NewHandler(svc *service.SessionService, authMgr *auth.Manager) *Handler {
+	return &Handler{svc: svc, authMgr: authMgr}
 }
 
 // ClientCommand 是客户端 → 服务端的消息（§2.4.2，kind 判别）。
@@ -83,6 +86,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sessionID := chi.URLParam(r, "sessionId")
 	if sessionID == "" {
 		http.Error(w, "sessionId is required", http.StatusBadRequest)
+		return
+	}
+
+	// 鉴权：浏览器 WS 不能设 header，统一走 ?token= query param。
+	// authMgr 为 nil 或未启用时 VerifyQuery 直接返回 true。
+	if h.authMgr != nil && !h.authMgr.VerifyQuery(r) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 

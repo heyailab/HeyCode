@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/heycode/backend-go/internal/auth"
 	"github.com/heycode/backend-go/internal/config"
 	"github.com/heycode/backend-go/internal/crypto"
 	"github.com/heycode/backend-go/internal/db"
@@ -40,6 +41,14 @@ func run() error {
 	}
 	if cfg.IsMasterKeyPlaceholder() {
 		log.Printf("警告: MASTER_KEY 为占位符，使用临时内存密钥（重启后加密数据失效，仅用于本地调试）")
+	}
+
+	// 1.1 鉴权 Manager（AUTH_TOKEN 未配置时鉴权关闭，仅本地调试可用）
+	authMgr := auth.New(cfg.AuthTokens())
+	if !authMgr.Enabled() {
+		log.Printf("警告: AUTH_TOKEN 未配置，后端无鉴权（任何人知道地址即可访问），仅用于本地调试")
+	} else {
+		log.Printf("鉴权已启用，已加载 %d 个 token", len(cfg.AuthTokens()))
 	}
 
 	// 2. 解析主密钥
@@ -100,9 +109,10 @@ func run() error {
 		Files:     httptransport.NewFileHandler(fileService),
 		Sessions:  httptransport.NewSessionHandler(sessionService),
 		Snapshots: httptransport.NewSnapshotHandler(snapshotService),
-		WS:        ws.NewHandler(sessionService),
+		Auth:      httptransport.NewAuthHandler(authMgr),
+		WS:        ws.NewHandler(sessionService, authMgr),
 	}
-	handler := httptransport.NewRouter(deps)
+	handler := httptransport.NewRouter(deps, authMgr)
 
 	// 9. 启动 HTTP 服务
 	addr := fmt.Sprintf(":%d", cfg.Port)

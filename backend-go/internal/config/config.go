@@ -29,6 +29,7 @@ type Config struct {
 	JwtSecret   string // 保留字段，未来扩展用
 	LogLevel    string // debug | info | warn | error，默认 info
 	MockCli     bool   // true 时 claude-code 走 MockAdapter，无需 SSH
+	AuthToken   string // 鉴权 token（逗号分隔多 token）；空表示鉴权未启用（仅本地调试）
 }
 
 // Load 从环境变量（可选 .env）加载配置。
@@ -71,8 +72,20 @@ func Load() (*Config, error) {
 			cfg.MockCli = b
 		}
 	}
+	if v := os.Getenv("AUTH_TOKEN"); v != "" {
+		cfg.AuthToken = v
+	}
 
 	return cfg, nil
+}
+
+// AuthTokens 返回按逗号切分的 token 列表（未去空白，由 auth.New 清理）。
+// 空字符串返回 nil。
+func (c *Config) AuthTokens() []string {
+	if c.AuthToken == "" {
+		return nil
+	}
+	return strings.Split(c.AuthToken, ",")
 }
 
 // IsMasterKeyPlaceholder 判断当前 MasterKey 是否为开发占位符。

@@ -31,11 +31,15 @@ final configProvider = StateProvider<AppConfig>((ref) {
   return AppConfig.fromBaseUrl(AppConfig.defaultBaseUrl);
 });
 
-/// 启动时从存储读取 baseUrl 写入 configProvider。
+/// 启动时从存储读取 baseUrl + authToken 写入 configProvider。
 final initConfigProvider = FutureProvider<void>((ref) async {
   final storage = ref.read(storageProvider);
   final url = await storage.getBaseUrl();
-  final cfg = AppConfig.fromBaseUrl(url.isEmpty ? AppConfig.defaultBaseUrl : url);
+  final token = await storage.getAuthToken();
+  final cfg = AppConfig.fromBaseUrl(
+    url.isEmpty ? AppConfig.defaultBaseUrl : url,
+    authToken: token,
+  );
   ref.read(configProvider.notifier).state = cfg;
 });
 
@@ -52,6 +56,7 @@ final wsClientProvider = Provider<WsClient>((ref) {
   final config = ref.watch(configProvider);
   final client = WsClient();
   client.setWsUrl(config.wsUrl);
+  client.setAuthToken(config.authToken);
   ref.onDispose(() => client.close());
   return client;
 });

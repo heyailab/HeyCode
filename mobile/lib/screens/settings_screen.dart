@@ -17,6 +17,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _urlCtrl;
+  late final TextEditingController _tokenCtrl;
+  bool _obscureToken = true;
   String? _testMsg;
   bool _testOk = false;
 
@@ -27,20 +29,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _urlCtrl = TextEditingController(
       text: config.baseUrl == AppConfig.defaultBaseUrl ? '' : config.baseUrl,
     );
+    _tokenCtrl = TextEditingController(text: config.authToken);
   }
 
   @override
   void dispose() {
     _urlCtrl.dispose();
+    _tokenCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final url = _urlCtrl.text.trim();
+    final token = _tokenCtrl.text.trim();
     final storage = ref.read(storageProvider);
     await storage.setBaseUrl(url);
-    ref.read(configProvider.notifier).state =
-        AppConfig.fromBaseUrl(url.isEmpty ? AppConfig.defaultBaseUrl : url);
+    await storage.setAuthToken(token);
+    ref.read(configProvider.notifier).state = AppConfig.fromBaseUrl(
+      url.isEmpty ? AppConfig.defaultBaseUrl : url,
+      authToken: token,
+    );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已保存')));
     }
@@ -50,11 +58,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await _save();
     try {
       final api = ref.read(apiClientProvider);
-      final res = await api.health();
+      // 用 verifyAuth 而非 health：同时校验 URL 可达性与 token 正确性。
+      // 后端鉴权未启用时 token 可空，verifyAuth 仍返回 ok:true, authEnabled:false。
+      final res = await api.verifyAuth();
+      final ok = res['ok'] == true;
+      final authEnabled = res['authEnabled'] == true;
       final version = res['version'] ?? '?';
       setState(() {
-        _testMsg = '连接成功（v$version）';
-        _testOk = true;
+        _testOk = ok;
+        if (ok) {
+          _testMsg = authEnabled
+              ? '连接成功（v$version，鉴权已启用）'
+              : '连接成功（v$version，鉴权未启用 - 仅本地调试可用）';
+        } else {
+          _testMsg = '连接失败';
+        }
       });
     } catch (e) {
       setState(() {
@@ -89,6 +107,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             keyboardType: TextInputType.url,
             autocorrect: false,
+          ),
+          const SizedBox(height: 16),
+          Text('鉴权 Token', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(
+            '后端配置了 AUTH_TOKEN 时必填，否则请求会被拒绝。'
+            '留空表示后端鉴权未启用（仅本地调试）。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _tokenCtrl,
+            obscureText: _obscureToken,
+            decoration: InputDecoration(
+              hintText: 'openssl rand -hex 32 生成的 token',
+              prefixIcon: const Icon(Icons.lock),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                icon: Icon(_obscureToken ? Icons.visibility : Icons.visibility_off),
+                onPressed: () => setState(() => _obscureToken = !_obscureToken),
+              ),
+            ),
+            autocorrect: false,
+            enableSuggestions: false,
           ),
           const SizedBox(height: 12),
           Row(

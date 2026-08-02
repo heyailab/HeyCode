@@ -84,11 +84,16 @@ class ApiClient {
   late final Dio _dio;
 
   ApiClient(AppConfig config) {
+    final headers = <String, dynamic>{'Accept': 'application/json'};
+    // 鉴权 token：后端启用 AUTH_TOKEN 时必填，为空时不带 header（兼容本地调试）。
+    if (config.hasAuthToken) {
+      headers['Authorization'] = 'Bearer ${config.authToken}';
+    }
     _dio = Dio(BaseOptions(
       baseUrl: config.baseUrl,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 30),
-      headers: {'Accept': 'application/json'},
+      headers: headers,
     ));
     _dio.interceptors.add(LogInterceptor(
       requestBody: false,
@@ -104,6 +109,20 @@ class ApiClient {
   Future<Map<String, dynamic>> health() async {
     try {
       final res = await _dio.get('/api/health');
+      return _asMap(res.data);
+    } on DioException catch (e) {
+      _err(e);
+    }
+  }
+
+  // ---- 鉴权自检 ----
+
+  /// 调用 POST /api/auth/verify 验证 URL 可达性与 token 正确性。
+  /// 返回 {ok, authEnabled, version}。
+  /// 设置页"测试连接"应调用本方法（而非 health），以同时校验 token。
+  Future<Map<String, dynamic>> verifyAuth() async {
+    try {
+      final res = await _dio.post('/api/auth/verify');
       return _asMap(res.data);
     } on DioException catch (e) {
       _err(e);

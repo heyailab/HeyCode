@@ -8,11 +8,15 @@ class Storage {
   Storage(this._sp);
 
   static const _kBaseUrl = 'backend.baseUrl';
+  static const _kAuthToken = 'backend.authToken';
   static const _kLastServerId = 'last.serverId';
   static const _kLastProjectId = 'last.projectId';
 
   Future<String> getBaseUrl() async => _sp.getString(_kBaseUrl) ?? '';
   Future<void> setBaseUrl(String url) => _sp.setString(_kBaseUrl, url);
+
+  Future<String> getAuthToken() async => _sp.getString(_kAuthToken) ?? '';
+  Future<void> setAuthToken(String token) => _sp.setString(_kAuthToken, token);
 
   Future<String?> getLastServerId() async => _sp.getString(_kLastServerId);
   Future<void> setLastServerId(String? id) async {
