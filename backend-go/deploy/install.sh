@@ -103,18 +103,14 @@ step "临时目录: $TMP_DIR"
 
 # ---- 3. 下载文件 ----
 info "下载文件..."
-step "二进制: heycode-backend-linux-amd64"
-download "$BASE_URL/heycode-backend-linux-amd64" "$TMP_DIR/heycode-backend" || {
-    error "下载二进制失败，请检查版本 $VERSION 是否存在"
+step "打包文件: heycode-backend-linux-amd64.tar.gz"
+download "$BASE_URL/heycode-backend-linux-amd64.tar.gz" "$TMP_DIR/heycode-backend-linux-amd64.tar.gz" || {
+    error "下载失败，请检查版本 $VERSION 是否存在"
     exit 1
 }
-chmod +x "$TMP_DIR/heycode-backend"
-
-step "systemd unit: heycode-backend.service"
-download "$BASE_URL/heycode-backend.service" "$TMP_DIR/heycode-backend.service"
-
-step "配置模板: .env.example"
-download "$BASE_URL/.env.example" "$TMP_DIR/.env.example"
+# 解包（tar.gz 内含：二进制 + systemd unit + .env.example + install.sh）
+tar -xzf "$TMP_DIR/heycode-backend-linux-amd64.tar.gz" -C "$TMP_DIR/"
+chmod +x "$TMP_DIR/heycode-backend-linux-amd64"
 
 # ---- 4. 准备 .env ----
 info "生成配置..."
@@ -149,7 +145,7 @@ chown -R "$APP_USER:$APP_USER" "$INSTALL_DIR"
 # ---- 6. 安装文件 ----
 info "安装文件..."
 step "二进制 → $INSTALL_DIR/heycode-backend"
-cp "$TMP_DIR/heycode-backend" "$INSTALL_DIR/heycode-backend"
+cp "$TMP_DIR/heycode-backend-linux-amd64" "$INSTALL_DIR/heycode-backend"
 chmod 755 "$INSTALL_DIR/heycode-backend"
 
 step "配置 → $INSTALL_DIR/.env"
