@@ -161,9 +161,15 @@ chown -R "$APP_USER:$APP_USER" "$INSTALL_DIR"
 
 # ---- 6. 安装文件 ----
 info "安装文件..."
+
+# 升级场景：服务可能正在运行，旧二进制被占用导致 cp 报 "Text file busy"。
+# 先 stop 释放文件句柄，再覆盖。新装场景下 stop 不存在的服务不会报错（|| true）。
+step "停止现有服务（若运行中）"
+systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+
 step "二进制 → $INSTALL_DIR/heycode-backend"
-cp "$TMP_DIR/heycode-backend-linux-amd64" "$INSTALL_DIR/heycode-backend"
-chmod 755 "$INSTALL_DIR/heycode-backend"
+# 用 install 而非 cp：先写临时文件再原子 rename，避免部分写入导致服务损坏。
+install -m 755 "$TMP_DIR/heycode-backend-linux-amd64" "$INSTALL_DIR/heycode-backend"
 
 step "配置 → $INSTALL_DIR/.env"
 cp "$ENV_SOURCE" "$INSTALL_DIR/.env"
