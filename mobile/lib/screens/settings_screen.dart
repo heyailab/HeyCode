@@ -169,6 +169,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           _apiKeyList(),
+          const SizedBox(height: 24),
+          // 版本号：从 pubspec 运行时读取，发版自动同步。
+          Center(
+            child: ref.watch(appVersionProvider).when(
+                  data: (v) => Text(
+                    'HeyCode App v$v',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                ),
+          ),
         ],
       ),
     );

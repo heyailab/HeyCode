@@ -6,6 +6,7 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../config.dart';
 import '../models/file_snapshot.dart';
@@ -126,6 +127,13 @@ final dataVersionProvider = StateProvider<int>((ref) => 0);
 void bumpDataVersion(WidgetRef ref) {
   ref.read(dataVersionProvider.notifier).state++;
 }
+
+/// App 版本信息（从 pubspec 运行时读取，发版自动同步无需手动维护）。
+/// 返回 "1.0.0+1" 格式：version+buildNumber。
+final appVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return '${info.version}+${info.buildNumber}';
+});
 
 // ---- 会话控制器 ----
 
